@@ -1,0 +1,19 @@
+[debug] [2025-05-28T07:24:47.576Z] ----------------------------------------------------------------------
+[debug] [2025-05-28T07:24:47.580Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\User\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js use --add
+[debug] [2025-05-28T07:24:47.580Z] CLI Version:   14.4.0
+[debug] [2025-05-28T07:24:47.580Z] Platform:      win32
+[debug] [2025-05-28T07:24:47.581Z] Node Version:  v22.12.0
+[debug] [2025-05-28T07:24:47.581Z] Time:          Wed May 28 2025 10:24:47 GMT+0300 (שעון ישראל (קיץ))
+[debug] [2025-05-28T07:24:47.581Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-05-28T07:24:47.583Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2025-05-28T07:24:47.888Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-05-28T07:24:47.888Z] > authorizing via signed-in user (yetsion@gmail.com)
+[debug] [2025-05-28T07:24:47.889Z] Checked if tokens are valid: true, expires at: 1748419994340
+[debug] [2025-05-28T07:24:47.890Z] Checked if tokens are valid: true, expires at: 1748419994340
+[debug] [2025-05-28T07:24:47.890Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=1000
+[debug] [2025-05-28T07:24:47.953Z] *** [apiv2] error from fetch(https://firebase-public.firebaseio.com/cli.json, {"headers":{},"method":"GET"}): FetchError: request to https://firebase-public.firebaseio.com/cli.json failed, reason: self-signed certificate in certificate chain
+[warn] !  Unable to fetch the CLI MOTD and remote config. This is not a fatal error, but may indicate an issue with your network connection. 
+[debug] [2025-05-28T07:24:47.954Z] Failed to fetch MOTD FirebaseError: Failed to make request to https://firebase-public.firebaseio.com/cli.json
+[debug] [2025-05-28T07:24:48.537Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2025-05-28T07:24:48.537Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]

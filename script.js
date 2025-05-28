@@ -9,9 +9,95 @@ const firebaseConfig = {
     measurementId: "G-SN0GMT8P8Y"
 };
 
-// אתחול Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+// משתנה לבדיקה אם Firebase עובד
+let firebaseWorking = false;
+let db;
+
+// אתחול Firebase (בלי להתלות בזה)
+async function initializeFirebase() {
+    try {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.firestore();
+        
+        // הגדרת offline persistence
+        await db.enablePersistence({ synchronizeTabs: true });
+        
+        console.log('✅ Firebase מותקן (מנסה להתחבר...)');
+        
+        // בדיקה אסינכרונית בלי לחכות
+        setTimeout(() => {
+            testFirestoreConnection();
+        }, 1000);
+        
+    } catch (error) {
+        console.warn('⚠️ שגיאה בהתקנת Firebase:', error);
+        console.log('🔄 עובד במצב מקומי בלבד...');
+        updateConnectionStatus(false);
+    }
+}
+
+// התחלה מקומית תמיד
+console.log('🚀 מתחיל במצב מקומי...');
+updateConnectionStatus(false);
+initializeFirebase();
+
+async function testFirestoreConnection() {
+    if (!db) {
+        console.log('❌ Firebase לא מותקן');
+        firebaseWorking = false;
+        updateConnectionStatus(false);
+        return;
+    }
+    
+    try {
+        console.log('🔄 בודק חיבור Firebase...');
+        
+        // בדיקה פשוטה - רק קריאה
+        const testQuery = await Promise.race([
+            db.collection('test').limit(1).get(),
+            new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('timeout')), 5000)
+            )
+        ]);
+        
+        // אם הגענו עד כאן, הכל עובד
+        firebaseWorking = true;
+        console.log('✅ Firebase חובר בהצלחה!');
+        updateConnectionStatus(true);
+        
+        // רענון טבלאות המובילים
+        await displayAllWelcomeLeaderboards();
+        
+    } catch (error) {
+        console.warn('⚠️ Firebase לא זמין:', error.message);
+        console.log('💾 ממשיך במצב מקומי...');
+        firebaseWorking = false;
+        updateConnectionStatus(false);
+        
+        // רענון טבלאות מקומיות
+        await displayAllWelcomeLeaderboards();
+    }
+}
+
+function updateConnectionStatus(isOnline) {
+    const statusEl = document.getElementById('connection-status');
+    const iconEl = document.getElementById('status-icon');
+    const textEl = document.getElementById('status-text');
+    
+    if (!statusEl) return; // אם האלמנטים עוד לא נטענו
+    
+    if (isOnline) {
+        statusEl.className = 'connection-status online';
+        iconEl.textContent = '☁️';
+        textEl.textContent = 'מחובר לשרת';
+        statusEl.title = 'התוצאות נשמרות בשרת';
+    } else {
+        statusEl.className = 'connection-status offline';
+        iconEl.textContent = '💾';
+        textEl.textContent = 'מצב מקומי';
+        statusEl.title = 'התוצאות נשמרות מקומית במחשב';
+    }
+}
 
 // נתוני המשחק
 const gameData = {
@@ -73,21 +159,21 @@ const gameData = {
 };
 
 // משתני המשחק
-let currentStage = 0;
+let currentCategory = 0; // הקטגוריה שנבחרה
 let currentAnswer = 0;
 let startTime = 0;
-let stageStartTime = 0;
 let timerInterval;
-let gameState = 'welcome'; // welcome, playing, success, final
-let finalGameTime = 0; // זמן סיום המשחק הסופי
+let gameState = 'welcome'; // welcome, playing, final
+let finalGameTime = 0;
 
-const stages = ['ראשי הממשלה', 'נשיאי ישראל', 'רמטכ"לי צה"ל'];
+const categories = ['ראשי הממשלה', 'נשיאי ישראל', 'רמטכ"לי צה"ל'];
+const categoryCollections = ['prime-ministers', 'presidents', 'chiefs-of-staff'];
+const categoryIcons = ['🏛️', '🏢', '⚔️'];
 
 // אלמנטים
 const screens = {
     welcome: document.getElementById('welcome-screen'),
     game: document.getElementById('game-screen'),
-    success: document.getElementById('success-screen'),
     final: document.getElementById('final-screen')
 };
 
@@ -103,8 +189,8 @@ const elements = {
     submitBtn: document.getElementById('submit-answer'),
     hintBtn: document.getElementById('hint-btn'),
     hintText: document.getElementById('hint-text'),
-    stageTime: document.getElementById('stage-time'),
     finalTime: document.getElementById('final-time'),
+    finalCategoryTitle: document.getElementById('final-category-title'),
     playerName: document.getElementById('player-name'),
     leaderboard: document.getElementById('leaderboard')
 };
@@ -134,7 +220,6 @@ function updateTimer() {
 
 function startTimer() {
     startTime = Date.now();
-    stageStartTime = Date.now();
     timerInterval = setInterval(updateTimer, 1000);
 }
 
@@ -208,7 +293,7 @@ function fillAnswer(userAnswer, correctAnswer) {
 }
 
 function showHint() {
-    const currentStageData = gameData[stages[currentStage]];
+    const currentStageData = gameData[categories[currentCategory]];
     const correctAnswer = currentStageData[currentAnswer];
     
     // מציאת המשבצת הראשונה ומילוי האות הראשונה
@@ -223,7 +308,7 @@ function showHint() {
 }
 
 function updateProgress() {
-    const currentStageData = gameData[stages[currentStage]];
+    const currentStageData = gameData[categories[currentCategory]];
     const progress = ((currentAnswer + 1) / currentStageData.length) * 100;
     elements.progress.style.width = `${progress}%`;
     
@@ -232,11 +317,11 @@ function updateProgress() {
 }
 
 function nextQuestion() {
-    const currentStageData = gameData[stages[currentStage]];
+    const currentStageData = gameData[categories[currentCategory]];
     
     if (currentAnswer >= currentStageData.length - 1) {
         // סיום השלב
-        finishStage();
+        finishGame();
         return;
     }
     
@@ -248,17 +333,22 @@ function nextQuestion() {
     updateProgress();
 }
 
-function finishStage() {
-    gameState = 'success';
-    const stageTime = Math.floor((Date.now() - stageStartTime) / 1000);
-    elements.stageTime.textContent = formatTime(stageTime);
-    showScreen('success');
+async function finishGame() {
+    gameState = 'final';
+    stopTimer();
+    
+    finalGameTime = Math.floor((Date.now() - startTime) / 1000);
+    elements.finalTime.textContent = formatTime(finalGameTime);
+    elements.finalCategoryTitle.textContent = `${categoryIcons[currentCategory]} טבלת המובילים - ${categories[currentCategory]}`;
+    
+    await displayLeaderboard(categoryCollections[currentCategory]);
+    showScreen('final');
 }
 
-async function nextStage() {
-    currentStage++;
+async function nextCategory() {
+    currentCategory++;
     
-    if (currentStage >= stages.length) {
+    if (currentCategory >= categories.length) {
         // סיום המשחק
         await finishGame();
         return;
@@ -266,11 +356,11 @@ async function nextStage() {
     
     // התחלת שלב חדש
     currentAnswer = 0;
-    stageStartTime = Date.now();
+    startTime = Date.now();
     gameState = 'playing';
     
-    const currentStageData = gameData[stages[currentStage]];
-    elements.stageTitle.textContent = stages[currentStage];
+    const currentStageData = gameData[categories[currentCategory]];
+    elements.stageTitle.textContent = categories[currentCategory];
     elements.answerNumber.textContent = '1.';
     createLetterBoxes(currentStageData[0]);
     elements.answerInput.value = '';
@@ -280,17 +370,6 @@ async function nextStage() {
     showScreen('game');
 }
 
-async function finishGame() {
-    gameState = 'final';
-    stopTimer();
-    
-    finalGameTime = Math.floor((Date.now() - startTime) / 1000);
-    elements.finalTime.textContent = formatTime(finalGameTime);
-    
-    await displayLeaderboard();
-    showScreen('final');
-}
-
 async function saveScore() {
     const playerName = elements.playerName.value.trim();
     if (!playerName) {
@@ -298,113 +377,168 @@ async function saveScore() {
         return;
     }
     
+    const gameData = {
+        name: playerName,
+        time: finalGameTime,
+        date: new Date().toISOString(),
+        timestamp: Date.now()
+    };
+    
+    let savedToFirebase = false;
+    
+    // ננסה לשמור ב-Firebase ברקע (silent)
+    if (firebaseWorking && db) {
+        try {
+            console.log('🔄 מנסה לשמור ב-Firebase (ברקע)...');
+            await Promise.race([
+                db.collection(categoryCollections[currentCategory]).add(gameData),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('timeout')), 3000)
+                )
+            ]);
+            console.log('✅ נשמר ב-Firebase!');
+            savedToFirebase = true;
+        } catch (error) {
+            console.warn('⚠️ Firebase לא זמין, שומר מקומית:', error.message);
+            firebaseWorking = false;
+            updateConnectionStatus(false);
+        }
+    }
+    
+    // שמירה מקומית (תמיד)
     try {
-        // שמירה לפיירבייס
-        await db.collection('leaderboard').add({
-            name: playerName,
-            time: finalGameTime,
-            date: new Date().toISOString(),
-            timestamp: Date.now()
-        });
+        saveScoreLocally(gameData);
+        console.log('✅ נשמר מקומית!');
         
         elements.playerName.value = '';
-        alert('התוצאה נשמרה בהצלחה! 🎉');
         
-        // רענון טבלת המובילים
-        await displayLeaderboard();
-        await displayWelcomeLeaderboard();
+        // הודעה למשתמש
+        if (savedToFirebase) {
+            alert('התוצאה נשמרה בהצלחה! ☁️🎉');
+        } else {
+            alert('התוצאה נשמרה! 💾\n(עובד במצב מקומי)');
+        }
+        
+        await displayLeaderboard(categoryCollections[currentCategory]);
+        await displayAllWelcomeLeaderboards();
     } catch (error) {
-        console.error('שגיאה בשמירת התוצאה:', error);
-        alert('שגיאה בשמירת התוצאה. אנא נסה שוב.');
+        console.error('❌ שגיאה בשמירה מקומית:', error);
+        alert('שגיאה בשמירת התוצאה 😞\nנסה שוב או רענן את הדף');
     }
 }
 
-async function getLeaderboard() {
+function saveScoreLocally(gameData) {
+    const key = `leaderboard-${categoryCollections[currentCategory]}`;
+    let scores = JSON.parse(localStorage.getItem(key) || '[]');
+    scores.push(gameData);
+    scores.sort((a, b) => a.time - b.time); // מיון לפי זמן
+    scores = scores.slice(0, 10); // שמירת 10 הטובים ביותר
+    localStorage.setItem(key, JSON.stringify(scores));
+}
+
+async function getLeaderboard(category) {
+    // טעינה מקומית תמיד (מהירה)
+    const localScores = await getLocalLeaderboard(category);
+    
+    // אם Firebase עובד, ננסה לטעון גם משם
+    if (firebaseWorking && db) {
+        try {
+            console.log(`🔄 מנסה לטעון מ-Firebase: ${category}`);
+            const querySnapshot = await Promise.race([
+                db.collection(category).orderBy('time', 'asc').limit(10).get(),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('timeout')), 3000)
+                )
+            ]);
+            
+            const firebaseScores = [];
+            querySnapshot.forEach((doc) => {
+                firebaseScores.push(doc.data());
+            });
+            
+            console.log(`✅ נטען מ-Firebase: ${firebaseScores.length} תוצאות`);
+            
+            // מיזוג תוצאות מקומיות ו-Firebase
+            const mergedScores = mergeLeaderboards(localScores, firebaseScores);
+            return mergedScores.slice(0, 10);
+            
+        } catch (error) {
+            console.warn(`⚠️ Firebase לא זמין עבור ${category}:`, error.message);
+            firebaseWorking = false;
+            updateConnectionStatus(false);
+        }
+    }
+    
+    // החזרת תוצאות מקומיות
+    console.log(`💾 טוען מקומית: ${localScores.length} תוצאות`);
+    return localScores;
+}
+
+function getLocalLeaderboard(category) {
     try {
-        const querySnapshot = await db.collection('leaderboard')
-            .orderBy('time', 'asc')
-            .limit(10)
-            .get();
-        
-        const scores = [];
-        querySnapshot.forEach((doc) => {
-            scores.push(doc.data());
-        });
-        
-        return scores;
+        const key = `leaderboard-${category}`;
+        const scores = JSON.parse(localStorage.getItem(key) || '[]');
+        return scores.slice(0, 10);
     } catch (error) {
-        console.error('שגיאה בטעינת טבלת המובילים:', error);
+        console.error('❌ שגיאה בטעינה מקומית:', error);
         return [];
     }
 }
 
-async function displayWelcomeLeaderboard() {
-    const welcomeLeaderboard = document.getElementById('welcome-leaderboard');
+function mergeLeaderboards(localScores, firebaseScores) {
+    // מיזוג התוצאות ומיון לפי זמן
+    const allScores = [...localScores, ...firebaseScores];
     
-    // הצגת הודעת טעינה
-    welcomeLeaderboard.innerHTML = '<p style="text-align: center; color: #666; font-size: 0.9rem;">🔄 טוען...</p>';
+    // הסרת כפילויות לפי שם ושזמן
+    const uniqueScores = allScores.filter((score, index, arr) => 
+        index === arr.findIndex(s => s.name === score.name && s.time === score.time)
+    );
     
-    const scores = await getLeaderboard();
-    welcomeLeaderboard.innerHTML = '';
-    
-    if (scores.length === 0) {
-        welcomeLeaderboard.innerHTML = '<p style="text-align: center; color: #666; font-size: 0.9rem;">אין תוצאות עדיין<br>היה הראשון! 🥇</p>';
-        return;
-    }
-    
-    // הצגת רק 5 הראשונים במסך הפתיחה
-    const topScores = scores.slice(0, 5);
-    
-    topScores.forEach((score, index) => {
-        const entry = document.createElement('div');
-        entry.className = 'leaderboard-entry';
-        
-        entry.innerHTML = `
-            <span class="rank">${index + 1}.</span>
-            <span class="name">${score.name}</span>
-            <span class="time">${formatTime(score.time)}</span>
-        `;
-        welcomeLeaderboard.appendChild(entry);
-    });
+    // מיון לפי זמן
+    return uniqueScores.sort((a, b) => a.time - b.time);
 }
 
-async function displayLeaderboard() {
-    // הצגת הודעת טעינה
-    elements.leaderboard.innerHTML = '<p style="text-align: center; color: #666;">🔄 טוען טבלת מובילים...</p>';
+async function displayAllWelcomeLeaderboards() {
+    const leaderboardIds = ['welcome-leaderboard-pm', 'welcome-leaderboard-presidents', 'welcome-leaderboard-chiefs'];
     
-    const scores = await getLeaderboard();
-    elements.leaderboard.innerHTML = '';
-    
-    if (scores.length === 0) {
-        elements.leaderboard.innerHTML = '<p style="text-align: center; color: #666;">אין תוצאות עדיין</p>';
-        return;
+    for (let i = 0; i < categoryCollections.length; i++) {
+        const leaderboardEl = document.getElementById(leaderboardIds[i]);
+        leaderboardEl.innerHTML = '<p style="text-align: center; color: #666; font-size: 0.8rem;">🔄 טוען...</p>';
+        
+        const scores = await getLeaderboard(categoryCollections[i]);
+        leaderboardEl.innerHTML = '';
+        
+        if (scores.length === 0) {
+            leaderboardEl.innerHTML = '<p style="text-align: center; color: #666; font-size: 0.8rem;">אין תוצאות עדיין</p>';
+            continue;
+        }
+        
+        // הצגת רק 3 הראשונים
+        const topScores = scores.slice(0, 3);
+        
+        topScores.forEach((score, index) => {
+            const entry = document.createElement('div');
+            entry.className = 'leaderboard-entry';
+            
+            entry.innerHTML = `
+                <span class="rank">${index + 1}.</span>
+                <span class="name">${score.name}</span>
+                <span class="time">${formatTime(score.time)}</span>
+            `;
+            leaderboardEl.appendChild(entry);
+        });
     }
-    
-    scores.forEach((score, index) => {
-        const entry = document.createElement('div');
-        entry.className = 'leaderboard-entry';
-        
-        // עיצוב התאריך
-        const date = new Date(score.date).toLocaleDateString('he-IL');
-        
-        entry.innerHTML = `
-            <span class="rank">${index + 1}.</span>
-            <span class="name">${score.name}</span>
-            <span class="time">${formatTime(score.time)}</span>
-        `;
-        elements.leaderboard.appendChild(entry);
-    });
 }
 
-function startGame() {
-    currentStage = 0;
+function startGame(categoryIndex) {
+    currentCategory = categoryIndex;
     currentAnswer = 0;
     gameState = 'playing';
     
-    const currentStageData = gameData[stages[currentStage]];
-    elements.stageTitle.textContent = stages[currentStage];
+    const currentCategoryData = gameData[categories[currentCategory]];
+    elements.stageTitle.textContent = categories[currentCategory];
     elements.answerNumber.textContent = '1.';
-    createLetterBoxes(currentStageData[0]);
+    createLetterBoxes(currentCategoryData[0]);
     elements.answerInput.value = '';
     elements.hintText.classList.remove('show');
     updateProgress();
@@ -419,15 +553,15 @@ function restartGame() {
     elements.hintText.classList.remove('show');
     showScreen('welcome');
     
-    // רענון טבלת המובילים במסך הפתיחה
-    displayWelcomeLeaderboard().catch(console.error);
+    // רענון טבלאות המובילים במסך הפתיחה
+    displayAllWelcomeLeaderboards().catch(console.error);
 }
 
 function submitAnswer() {
     const userAnswer = elements.answerInput.value.trim();
     if (!userAnswer) return;
     
-    const currentStageData = gameData[stages[currentStage]];
+    const currentStageData = gameData[categories[currentCategory]];
     const correctAnswer = currentStageData[currentAnswer];
     
     if (fillAnswer(userAnswer, correctAnswer)) {
@@ -448,10 +582,67 @@ function submitAnswer() {
     }
 }
 
+async function displayLeaderboard(category) {
+    // הצגת הודעת טעינה
+    elements.leaderboard.innerHTML = '<p style="text-align: center; color: #666;">🔄 טוען טבלת מובילים...</p>';
+    
+    const scores = await getLeaderboard(category);
+    elements.leaderboard.innerHTML = '';
+    
+    if (scores.length === 0) {
+        elements.leaderboard.innerHTML = '<p style="text-align: center; color: #666;">אין תוצאות עדיין</p>';
+        return;
+    }
+    
+    scores.forEach((score, index) => {
+        const entry = document.createElement('div');
+        entry.className = 'leaderboard-entry';
+        
+        entry.innerHTML = `
+            <span class="rank">${index + 1}.</span>
+            <span class="name">${score.name}</span>
+            <span class="time">${formatTime(score.time)}</span>
+        `;
+        elements.leaderboard.appendChild(entry);
+    });
+}
+
 // אירועי דף
 document.addEventListener('DOMContentLoaded', function() {
-    // כפתור התחלת משחק
-    document.getElementById('start-game').addEventListener('click', startGame);
+    // עדכון סטטוס החיבור
+    updateConnectionStatus(firebaseWorking);
+    
+    // כפתור בדיקת חיבור
+    document.getElementById('test-connection').addEventListener('click', async () => {
+        const btn = document.getElementById('test-connection');
+        const originalText = btn.textContent;
+        
+        btn.textContent = '⏳';
+        btn.disabled = true;
+        
+        console.log('🔄 בודק חיבור ידנית...');
+        
+        try {
+            await testFirestoreConnection();
+            console.log('✅ בדיקת חיבור הושלמה');
+        } catch (error) {
+            console.error('❌ בדיקת חיבור נכשלה:', error);
+        }
+        
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }, 1000);
+    });
+    
+    // כפתורי בחירת משחק
+    document.querySelectorAll('.select-game-btn').forEach((btn, index) => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const categoryIndex = parseInt(btn.closest('.game-option').dataset.category);
+            startGame(categoryIndex);
+        });
+    });
     
     // כפתור שליחת תשובה
     elements.submitBtn.addEventListener('click', submitAnswer);
@@ -466,11 +657,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // כפתור רמז
     elements.hintBtn.addEventListener('click', showHint);
     
-    // כפתור המשך לשלב הבא
-    document.getElementById('next-stage').addEventListener('click', async () => {
-        await nextStage();
-    });
-    
     // כפתור שמירת תוצאה
     document.getElementById('save-score').addEventListener('click', async () => {
         await saveScore();
@@ -479,9 +665,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // כפתור משחק חדש
     document.getElementById('restart-game').addEventListener('click', restartGame);
     
-    // העלאת טבלת המובילים בטעינת הדף
-    displayLeaderboard().catch(console.error);
-    displayWelcomeLeaderboard().catch(console.error);
+    // העלאת טבלאות המובילים בטעינת הדף
+    displayAllWelcomeLeaderboards().catch(console.error);
 });
 
 // העלאת טיימר אוטומטית

@@ -21,6 +21,11 @@
                     <span class="timer-icon">⏱️</span>
                     <span id="timer">00:00</span>
                 </div>
+                <div id="connection-status" class="connection-status">
+                    <span id="status-icon">🔄</span>
+                    <span id="status-text">מתחבר...</span>
+                    <button id="test-connection" class="test-connection-btn" title="בדוק חיבור">🔄</button>
+                </div>
             </div>
         </header>
 
@@ -28,28 +33,51 @@
         <div id="welcome-screen" class="screen active">
             <div class="welcome-content">
                 <h2>ברוכים הבאים למשחק המנהיגים!</h2>
-                <p>מטרת המשחק: להשלים את שמות המנהיגים הישראלים בסדר הנכון</p>
-                <div class="stages-info">
-                    <div class="stage-info">
-                        <span class="stage-number">1</span>
-                        <span>ראשי הממשלה</span>
+                <p>בחר את סוג המשחק שתרצה לשחק</p>
+                
+                <div class="game-selection">
+                    <div class="game-option" data-category="0">
+                        <div class="game-icon">🏛️</div>
+                        <h3>ראשי הממשלה</h3>
+                        <p>14 שמות לזכור</p>
+                        <button class="select-game-btn">🚀 שחק עכשיו</button>
                     </div>
-                    <div class="stage-info">
-                        <span class="stage-number">2</span>
-                        <span>נשיאי ישראל</span>
+                    
+                    <div class="game-option" data-category="1">
+                        <div class="game-icon">🏢</div>
+                        <h3>נשיאי ישראל</h3>
+                        <p>11 שמות לזכור</p>
+                        <button class="select-game-btn">🚀 שחק עכשיו</button>
                     </div>
-                    <div class="stage-info">
-                        <span class="stage-number">3</span>
-                        <span>רמטכ"לי צה"ל</span>
+                    
+                    <div class="game-option" data-category="2">
+                        <div class="game-icon">⚔️</div>
+                        <h3>רמטכ"לי צה"ל</h3>
+                        <p>24 שמות לזכור</p>
+                        <button class="select-game-btn">🚀 שחק עכשיו</button>
                     </div>
                 </div>
                 
-                <div class="welcome-leaderboard-container">
-                    <h3>🏆 טבלת המובילים הנוכחית</h3>
-                    <div id="welcome-leaderboard" class="welcome-leaderboard"></div>
+                <div class="welcome-leaderboards">
+                    <h3>🏆 המצטיינים בכל קטגוריה</h3>
+                    
+                    <div class="mini-leaderboards">
+                        <div class="mini-leaderboard">
+                            <h4>🏛️ ראשי ממשלה</h4>
+                            <div id="welcome-leaderboard-pm" class="mini-leaderboard-content"></div>
+                        </div>
+                        
+                        <div class="mini-leaderboard">
+                            <h4>🏢 נשיאים</h4>
+                            <div id="welcome-leaderboard-presidents" class="mini-leaderboard-content"></div>
+                        </div>
+                        
+                        <div class="mini-leaderboard">
+                            <h4>⚔️ רמטכ"לים</h4>
+                            <div id="welcome-leaderboard-chiefs" class="mini-leaderboard-content"></div>
+                        </div>
+                    </div>
                 </div>
-                
-                <button id="start-game" class="start-btn">🚀 התחל משחק</button>
             </div>
         </div>
 
@@ -83,18 +111,6 @@
             </div>
         </div>
 
-        <!-- Success Screen -->
-        <div id="success-screen" class="screen">
-            <div class="success-content">
-                <h2>🎉 כל הכבוד!</h2>
-                <p>השלמת את השלב בהצלחה!</p>
-                <div class="stage-time">
-                    זמן השלב: <span id="stage-time">00:00</span>
-                </div>
-                <button id="next-stage" class="next-btn">➡️ לשלב הבא</button>
-            </div>
-        </div>
-
         <!-- Final Screen -->
         <div id="final-screen" class="screen">
             <div class="final-content">
@@ -109,7 +125,7 @@
                 </div>
 
                 <div class="leaderboard-container">
-                    <h3>🥇 טבלת המובילים</h3>
+                    <h3 id="final-category-title">🥇 טבלת המובילים</h3>
                     <div id="leaderboard" class="leaderboard"></div>
                 </div>
 
